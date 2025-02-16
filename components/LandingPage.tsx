@@ -21,10 +21,30 @@ export default function LandingPage() {
           <Image
             src="/music-generation.png"
             alt="AI Music Generation"
-            layout="fill"
+            width="672"
+            height="378"
             objectFit="cover"
             className="rounded-lg shadow-2xl"
           />
+        </div>
+        <div className="mb-12 text-left max-w-2xl mx-auto">
+          <h3 className="text-4xl font-bold mb-4 text-gray-800 dark:text-gray-100">
+            How to?
+          </h3>
+          <ol className="list-decimal list-inside space-y-2 text-gray-600 dark:text-gray-300">
+            <li className="text-xl">
+              Choose the two pairs of chords and keys you want to interpolate
+              between
+            </li>
+            <li className="text-xl">
+              Combine audio outputs from 100s of interpolations by just clicking
+              on the audio visualizations
+            </li>
+            <li className="text-xl">
+              Mess around and make tunes powered by Magenta JS's Deep Learning
+              and RNNs models hosted on the cloud. Just for you
+            </li>
+          </ol>
         </div>
         <Button asChild size="lg" className="text-lg px-8 py-6">
           <Link href="/generate">Get Started</Link>
