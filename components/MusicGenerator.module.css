@@ -156,3 +156,19 @@
   animation: scaleIn 0.2s ease-out forwards;
   transform-origin: center;
 }
+
+.tonicLeft {
+  background-color: #007bff; /* Example color */
+}
+
+.tonicRight {
+  background-color: #28a745; /* Example color */
+}
+
+.chordLeft {
+  background-color: #dc3545; /* Example color */
+}
+
+.chordRight {
+  background-color: #ffc107; /* Example color */
+}

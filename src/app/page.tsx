@@ -1,10 +1,10 @@
 import type React from "react";
-import MusicGenerator from "../../components/MusicGenerator";
+import LandingPage from "../../components/LandingPage";
 
 const Home: React.FC = () => {
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
-      <MusicGenerator />
+      <LandingPage />
     </div>
   );
 };

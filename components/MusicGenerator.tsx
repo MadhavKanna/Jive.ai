@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import * as Tone from "tone";
 import * as mm from "@magenta/music/es6";
 import _ from "lodash";
@@ -140,13 +140,13 @@ const MusicGenerator: React.FC = () => {
         await rnnRef.current.initialize();
 
         reverbRef.current = new Tone.Reverb({
-          decay: 4,
-          preDelay: 0.25,
+          decay: 2.5,
+          preDelay: 0.1,
         }).toDestination();
         await reverbRef.current.generate();
 
         if (reverbRef.current.wet) {
-          reverbRef.current.wet.value = 0.15;
+          reverbRef.current.wet.value = 0.2;
         }
 
         samplersRef.current = [buildSamplers(-0.4), buildSamplers(0.4)];
@@ -262,8 +262,7 @@ const MusicGenerator: React.FC = () => {
     }
 
     setIsGenerating(false);
-  }, [tonicLeft, tonicRight, chordLeft, chordRight, vaeRef, rnnRef]);
-
+  }, [tonicLeft, tonicRight, chordLeft, chordRight]);
   useEffect(() => {
     if (!isLoading) {
       generateSpace();
@@ -503,27 +502,34 @@ const MusicGenerator: React.FC = () => {
     const notes = sequence.notes || [];
     const totalTime = sequence.totalTime || 2;
 
-    const toneNotes = notes.map((note) => ({
-      time:
+    const toneNotes = notes.map((note) => {
+      const startTime =
         (note.quantizedStartStep ?? 0) *
         Tone.Time("4n").toSeconds() *
-        (90 / tempo),
-      note: note.pitch ? Tone.Frequency(note.pitch, "midi").toNote() : "C4",
-      velocity: note.velocity ? note.velocity / 100 : 0.7,
-      duration:
+        (90 / tempo);
+      const duration =
         ((note.quantizedEndStep ?? SEQ_LENGTH) -
           (note.quantizedStartStep ?? 0)) *
         Tone.Time("4n").toSeconds() *
-        (90 / tempo),
-    }));
+        (90 / tempo);
+      return {
+        time: startTime,
+        note: note.pitch ? Tone.Frequency(note.pitch, "midi").toNote() : "C4",
+        velocity: note.velocity ? note.velocity / 100 : 0.7,
+        duration: Math.min(duration, 0.5), // Limit duration to prevent long overlaps
+      };
+    });
 
     const newSequence = new Tone.Sequence(
       (time, event) => {
         if (event.note) {
+          // Add a slight random delay and duration variation
+          const delay = Math.random() * 0.05; // Random delay up to 50ms
+          const durationVariation = 0.9 + Math.random() * 0.2; // Duration variation between 90% and 110%
           samplersRef.current[0].high.triggerAttackRelease(
             event.note,
-            event.duration,
-            time,
+            event.duration * durationVariation,
+            time + delay,
             event.velocity
           );
         }
@@ -650,13 +656,6 @@ const MusicGenerator: React.FC = () => {
               <span className={styles.tempoLabel}>{tempo}</span>
             </div>
           </div>
-          <p>
-            MIDI outputs & clock{" "}
-            <a href="https://caniuse.com/#feat=midi">
-              supported on Chrome only
-            </a>
-            .
-          </p>
         </div>
       </div>
       <div className={styles.controls}>{renderControlButtons("right")}</div>
