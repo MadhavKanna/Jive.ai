@@ -143,11 +143,8 @@ const MusicGenerator: React.FC = () => {
           decay: 2.5,
           preDelay: 0.1,
         }).toDestination();
+        reverbRef.current.wet.value = 0.2;
         await reverbRef.current.generate();
-
-        if (reverbRef.current.wet) {
-          reverbRef.current.wet.value = 0.2;
-        }
 
         samplersRef.current = [buildSamplers(-0.4), buildSamplers(0.4)];
 
@@ -162,7 +159,7 @@ const MusicGenerator: React.FC = () => {
   }, []);
 
   const buildSamplers = (pan: number) => {
-    const samplers = {
+    const marimbaSamplers = {
       high: buildSampler(
         "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/marimba-classic-"
       ),
@@ -174,13 +171,41 @@ const MusicGenerator: React.FC = () => {
       ),
     };
 
-    Object.values(samplers).forEach((sampler) => {
+    const xylophoneSamplers = {
+      high: buildSampler(
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/xylophone-dark-"
+      ),
+      mid: buildSampler(
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/xylophone-dark-mid-"
+      ),
+      low: buildSampler(
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/xylophone-dark-low-"
+      ),
+    };
+
+    const delay = new Tone.FeedbackDelay({
+      delayTime: "8n",
+      feedback: 0.2,
+      wet: 0.1,
+    }).connect(reverbRef.current!);
+
+    Object.values(marimbaSamplers).forEach((sampler) => {
       if (reverbRef.current) {
-        sampler.connect(new Tone.Panner(pan).connect(reverbRef.current));
+        sampler.chain(new Tone.Panner(pan), delay, reverbRef.current);
+      } else {
+        sampler.connect(new Tone.Panner(pan).toDestination());
+      }
+    });
+    // Connect xylophone samplers to reverb, delay and panner
+    Object.values(xylophoneSamplers).forEach((sampler) => {
+      if (reverbRef.current) {
+        sampler.chain(new Tone.Panner(pan), delay, reverbRef.current);
+      } else {
+        sampler.connect(new Tone.Panner(pan).toDestination());
       }
     });
 
-    return samplers;
+    return { marimba: marimbaSamplers, xylophone: xylophoneSamplers };
   };
 
   const buildSampler = (urlPrefix: string) => {
@@ -263,11 +288,18 @@ const MusicGenerator: React.FC = () => {
 
     setIsGenerating(false);
   }, [tonicLeft, tonicRight, chordLeft, chordRight]);
+
   useEffect(() => {
     if (!isLoading) {
       generateSpace();
     }
   }, [isLoading, generateSpace]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      Tone.Transport.bpm.value = tempo; // Update transport bpm when tempo changes
+    }
+  }, [tempo, isLoading]);
 
   // Add mouse event handlers
   useEffect(() => {
@@ -493,59 +525,61 @@ const MusicGenerator: React.FC = () => {
     );
   };
 
+  useEffect(() => {
+    Tone.Transport.bpm.value = tempo;
+  }, [tempo]);
+
   const startPlayback = (sequence: mm.INoteSequence, index: number) => {
-    if (toneSequencesRef.current.has(index)) {
-      toneSequencesRef.current.get(index)?.stop();
-      toneSequencesRef.current.get(index)?.dispose();
-    }
-
     const notes = sequence.notes || [];
-    const totalTime = sequence.totalTime || 2;
-
-    const toneNotes = notes.map((note) => {
-      const startTime =
-        (note.quantizedStartStep ?? 0) *
-        Tone.Time("4n").toSeconds() *
-        (90 / tempo);
-      const duration =
+    const toneNotes = notes.map((note) => ({
+      time: (note.quantizedStartStep ?? 0) * Tone.Time("4n").toSeconds(),
+      note: note.pitch ? Tone.Frequency(note.pitch, "midi").toNote() : "C4",
+      velocity: note.velocity ? note.velocity / 100 : 0.7,
+      duration: Math.min(
         ((note.quantizedEndStep ?? SEQ_LENGTH) -
           (note.quantizedStartStep ?? 0)) *
-        Tone.Time("4n").toSeconds() *
-        (90 / tempo);
-      return {
-        time: startTime,
-        note: note.pitch ? Tone.Frequency(note.pitch, "midi").toNote() : "C4",
-        velocity: note.velocity ? note.velocity / 100 : 0.7,
-        duration: Math.min(duration, 0.5), // Limit duration to prevent long overlaps
-      };
-    });
+          Tone.Time("4n").toSeconds(),
+        0.5
+      ),
+    }));
 
-    const newSequence = new Tone.Sequence(
-      (time, event) => {
-        if (event.note) {
-          // Add a slight random delay and duration variation
-          const delay = Math.random() * 0.05; // Random delay up to 50ms
-          const durationVariation = 0.9 + Math.random() * 0.2; // Duration variation between 90% and 110%
-          samplersRef.current[0].high.triggerAttackRelease(
-            event.note,
-            event.duration * durationVariation,
-            time + delay,
-            event.velocity
-          );
+    const newSequence = new Tone.Sequence((time, event) => {
+      if (event.note) {
+        // Add humanization
+        const delay = Math.random() * HUMANIZE_TIMING;
+        const durationVariation = 0.95 + Math.random() * 0.1;
+
+        // Alternate between marimba and xylophone
+        const samplerGroup =
+          Math.random() > 0.5
+            ? samplersRef.current[0].marimba
+            : samplersRef.current[0].xylophone;
+
+        // Select sampler based on pitch
+        let sampler;
+        if (Tone.Frequency(event.note).toMidi() >= 72) {
+          sampler = samplerGroup.high;
+        } else if (Tone.Frequency(event.note).toMidi() >= 60) {
+          sampler = samplerGroup.mid;
+        } else {
+          sampler = samplerGroup.low;
         }
-      },
-      toneNotes,
-      "4n"
-    ).start(0);
 
+        sampler.triggerAttackRelease(
+          event.note,
+          event.duration * durationVariation,
+          time + delay,
+          event.velocity
+        );
+      }
+    }, toneNotes).start(0);
+
+    newSequence.playbackRate = tempo / 120; // Adjust playback rate based on tempo
     toneSequencesRef.current.set(index, newSequence);
 
     if (Tone.Transport.state !== "started") {
       Tone.Transport.start();
     }
-
-    // Set the tempo
-    Tone.Transport.bpm.value = tempo;
   };
 
   const stopPlayback = (index: number) => {
@@ -650,9 +684,13 @@ const MusicGenerator: React.FC = () => {
                 onChange={(e) => {
                   const newTempo = Number.parseInt(e.target.value);
                   setTempo(newTempo);
-                  generateSpace();
+                  Tone.Transport.bpm.value = newTempo;
+                  toneSequencesRef.current.forEach((seq) => {
+                    seq.playbackRate = newTempo / 120;
+                  });
                 }}
               />
+
               <span className={styles.tempoLabel}>{tempo}</span>
             </div>
           </div>
