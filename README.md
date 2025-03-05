@@ -1,4 +1,4 @@
-Jive: Generate Tunes with Generative AI - RNNs and Deep Learning - NSBE Hacks 2025
+# Jive: Generate Tunes with Generative AI - RNNs and Deep Learning - NSBE Hacks 2025
 Deployed at: [jive-nsbe.firebaseapp.com](https://jive-nsbe.firebaseapp.com/)
 
 ![Screen shot of Jive AI in action](https://raw.githubusercontent.com/MadhavKanna/Jive.ai/refs/heads/main/public/jive-ss.png)
